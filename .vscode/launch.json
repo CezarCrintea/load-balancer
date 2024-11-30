@@ -1,0 +1,50 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug 'load-balancer'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=load-balancer",
+                    "--package=load-balancer",
+                    "--manifest-path=${workspaceFolder}/load-balancer/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "load-balancer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/load-balancer",
+            "sourceLanguages": [
+                "rust"
+            ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'load-balancer'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=load-balancer",
+                    "--package=load-balancer",
+                    "--manifest-path=${workspaceFolder}/load-balancer/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "load-balancer",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/load-balancer"
+        }
+    ]
+}
