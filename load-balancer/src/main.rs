@@ -14,6 +14,8 @@ use hyper_util::rt::TokioIo;
 use load_balancer::{BalancingAlgorithm, LoadBalancer, Server};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
+use tracing::{error, info, instrument, warn};
+use tracing_subscriber;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
@@ -21,6 +23,8 @@ type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let load_balancer = create_load_balancer().unwrap();
     let load_balancer = Arc::new(RwLock::new(load_balancer));
 
@@ -29,7 +33,7 @@ async fn main() -> Result<()> {
         .parse::<u16>()?;
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
-    println!("Listening on http://{}", addr);
+    info!("Listening on http://{}", addr);
 
     loop {
         let (stream, _) = listener.accept().await.map_err(|e| e.to_string())?;
@@ -40,7 +44,7 @@ async fn main() -> Result<()> {
             let service = service_fn(move |req| handle_request(req, load_balancer_clone.clone()));
 
             if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-                println!("Failed to serve connection: {:?}", err);
+                error!("Failed to serve connection: {:?}", err);
             }
         });
     }
@@ -57,16 +61,19 @@ fn create_load_balancer() -> Result<LoadBalancer> {
     Ok(lb)
 }
 
+#[instrument(skip_all)]
 async fn handle_request(
     req: Request<IncomingBody>,
     lb: Arc<RwLock<LoadBalancer>>,
 ) -> Result<Response<BoxBody>> {
+    info!("Received request: {} {}", req.method(), req.uri().path());
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/algo") => change_algo(req, lb).await,
         _ => forward_request(req, lb).await,
     }
 }
 
+#[instrument(skip_all)]
 async fn change_algo(
     req: Request<IncomingBody>,
     lb: Arc<RwLock<LoadBalancer>>,
@@ -81,29 +88,37 @@ async fn change_algo(
                     lb.set_algorithm(algo);
                 }
 
+                let msg = format!("Algorithm changed successfully to {}", algo);
+                info!(msg);
+
                 let response = Response::builder()
                     .status(StatusCode::OK)
                     .header(header::CONTENT_TYPE, "text/plain")
-                    .body(full(format!("Algorithm changed successfully to {}", algo)))?;
+                    .body(full(msg))?;
                 Ok(response)
             }
             Err(_) => {
+                let msg = format!("Invalid algorithm value '{}'", algo_value);
+                warn!(msg);
                 let response = Response::builder()
                     .status(StatusCode::BAD_REQUEST)
                     .header(header::CONTENT_TYPE, "text/plain")
-                    .body(full("Invalid algorithm value"))?;
+                    .body(full(msg))?;
                 Ok(response)
             }
         }
     } else {
+        let msg = "Missing or invalid 'algo' key";
+        warn!(msg);
         let response = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .header(header::CONTENT_TYPE, "text/plain")
-            .body(full("Missing or invalid 'algo' key"))?;
+            .body(full(msg))?;
         Ok(response)
     }
 }
 
+#[instrument(skip_all)]
 async fn forward_request(
     req: Request<IncomingBody>,
     lb: Arc<RwLock<LoadBalancer>>,
@@ -143,9 +158,11 @@ async fn forward_request(
     let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
-            println!("Connection failed: {:?}", err);
+            error!("Connection failed: {:?}", err);
         }
     });
+
+    info!("Forwarding request to {}", worker_addr);
 
     let worker_res = sender.send_request(worker_req).await?;
     let res_body = worker_res.into_body().boxed();

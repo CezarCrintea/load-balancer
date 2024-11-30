@@ -1,5 +1,6 @@
 use std::{fmt, net::SocketAddr};
 
+#[derive(Debug)]
 pub struct Server {
     address: String,
     connections: usize,
@@ -43,7 +44,7 @@ impl Server {
 const ROUND_ROBIN: &str = "round_robin";
 const LEAST_CONNECTIONS: &str = "least_connections";
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum BalancingAlgorithm {
     RoundRobin,
     LeastConnections,
@@ -79,6 +80,7 @@ impl fmt::Display for BalancingAlgorithm {
     }
 }
 
+#[derive(Debug)]
 pub struct LoadBalancer {
     servers: Vec<Server>,
     current_server: usize,
