@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     }
 }
 
-#[instrument]
+#[instrument(skip_all)]
 async fn router(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
     info!("Received request: {} {}", req.method(), req.uri().path());
 
@@ -71,7 +71,7 @@ async fn router(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
     }
 }
 
-#[instrument]
+#[instrument(skip_all)]
 async fn health_check() -> Result<Response<BoxBody>> {
     let response = Response::builder()
         .status(StatusCode::OK)
@@ -80,7 +80,7 @@ async fn health_check() -> Result<Response<BoxBody>> {
     Ok(response)
 }
 
-#[instrument]
+#[instrument(skip_all)]
 async fn work() -> Result<Response<BoxBody>> {
     sleep(Duration::from_millis(10)).await;
     let response = Response::builder()
