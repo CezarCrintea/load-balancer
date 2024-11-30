@@ -1,9 +1,12 @@
+mod balancing_algorithm;
 mod load_balancer;
+mod server;
 
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use balancing_algorithm::BalancingAlgorithm;
 use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
@@ -11,7 +14,8 @@ use hyper::service::service_fn;
 use hyper::Uri;
 use hyper::{body::Incoming as IncomingBody, header, Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use load_balancer::{BalancingAlgorithm, LoadBalancer, Server};
+use load_balancer::LoadBalancer;
+use server::Server;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
 use tracing::{error, info, instrument, warn};
