@@ -13,6 +13,7 @@ use reqwest::StatusCode;
 use std::{
     collections::HashMap,
     io::{self, Error, Stdout},
+    sync::Arc,
 };
 use tokio::task;
 
@@ -24,17 +25,20 @@ enum RequestType {
 }
 
 impl RequestType {
-    fn build(&self) -> Result<reqwest::Request, reqwest::Error> {
+    fn build(&self, client: Arc<reqwest::Client>) -> Result<reqwest::Request, reqwest::Error> {
         match self {
-            RequestType::ChangeAlgorithm(new_algo) => build_change_algo_request(new_algo),
-            RequestType::Work(duration, status_code) => build_work_request(duration, status_code),
+            RequestType::ChangeAlgorithm(new_algo) => build_change_algo_request(client, new_algo),
+            RequestType::Work(duration, status_code) => {
+                build_work_request(client, duration, status_code)
+            }
         }
     }
 }
 
-fn build_change_algo_request(new_algo: &str) -> Result<reqwest::Request, reqwest::Error> {
-    let client = reqwest::Client::new();
-
+fn build_change_algo_request(
+    client: Arc<reqwest::Client>,
+    new_algo: &str,
+) -> Result<reqwest::Request, reqwest::Error> {
     let mut data = HashMap::new();
     data.insert("algo", new_algo.to_string());
 
@@ -42,11 +46,10 @@ fn build_change_algo_request(new_algo: &str) -> Result<reqwest::Request, reqwest
 }
 
 fn build_work_request(
+    client: Arc<reqwest::Client>,
     duration: &u64,
     status_code: &StatusCode,
 ) -> Result<reqwest::Request, reqwest::Error> {
-    let client = reqwest::Client::new();
-
     let mut data = HashMap::new();
     data.insert("duration", duration.to_string());
     data.insert("status_code", status_code.as_u16().to_string());
@@ -54,9 +57,12 @@ fn build_work_request(
     client.post("http://127.0.0.1/work").json(&data).build()
 }
 
-async fn send_request(req: reqwest::Request, tx: tokio::sync::mpsc::Sender<String>) {
+async fn send_request(
+    client: Arc<reqwest::Client>,
+    req: reqwest::Request,
+    tx: tokio::sync::mpsc::Sender<String>,
+) {
     task::spawn(async move {
-        let client = reqwest::Client::new();
         if let Ok(response) = client.execute(req).await {
             if let Ok(text) = response.text().await {
                 let _ = tx.send(format!("Response received: {}", text)).await;
@@ -88,6 +94,13 @@ fn cleanup_terminal() -> Result<(), io::Error> {
 }
 
 fn main() -> Result<(), Error> {
+    let client = Arc::new(
+        reqwest::Client::builder()
+            .pool_max_idle_per_host(50)
+            .build()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?,
+    );
+
     let mut terminal = setup_terminal()?;
     let (tx, mut rx) = tokio::sync::mpsc::channel(100);
 
@@ -125,33 +138,37 @@ fn main() -> Result<(), Error> {
                     KeyCode::Char('1') => {
                         output.push_str("\nSending request...\n");
                         let req = RequestType::ChangeAlgorithm("round_robin".to_string())
-                            .build()
+                            .build(client.clone())
                             .unwrap();
-                        runtime.spawn(send_request(req, tx.clone()));
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('2') => {
                         output.push_str("\nSending request...\n");
                         let req = RequestType::ChangeAlgorithm("least_connections".to_string())
-                            .build()
+                            .build(client.clone())
                             .unwrap();
-                        runtime.spawn(send_request(req, tx.clone()));
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('3') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work(10, StatusCode::OK).build().unwrap();
-                        runtime.spawn(send_request(req, tx.clone()));
+                        let req = RequestType::Work(10, StatusCode::OK)
+                            .build(client.clone())
+                            .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('4') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work(5000, StatusCode::OK).build().unwrap();
-                        runtime.spawn(send_request(req, tx.clone()));
+                        let req = RequestType::Work(5000, StatusCode::OK)
+                            .build(client.clone())
+                            .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('5') => {
                         output.push_str("\nSending request...\n");
                         let req = RequestType::Work(100, StatusCode::INTERNAL_SERVER_ERROR)
-                            .build()
+                            .build(client.clone())
                             .unwrap();
-                        runtime.spawn(send_request(req, tx.clone()));
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('9') => {
                         output.push_str("\nQuitting...");
