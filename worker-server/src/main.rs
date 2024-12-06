@@ -1,7 +1,7 @@
 use std::env;
 use std::net::SocketAddr;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -54,7 +54,7 @@ async fn router(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
             res
         }
         (&Method::POST, "/work") => {
-            let res = work().await;
+            let res = work(req).await;
             if let Ok(ref r) = res {
                 info!("Response status: {}", r.status());
             }
@@ -81,10 +81,25 @@ async fn health_check() -> Result<Response<BoxBody>> {
 }
 
 #[instrument(skip_all)]
-async fn work() -> Result<Response<BoxBody>> {
-    sleep(Duration::from_millis(10)).await;
+async fn work(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
+    let whole_body = req.collect().await?.aggregate();
+    let data: serde_json::Value = serde_json::from_reader(whole_body.reader())?;
+
+    let duration = if let Some(duration_str) = data.get("duration").and_then(|v| v.as_str()) {
+        duration_str.parse::<u64>().unwrap_or(10)
+    } else {
+        10
+    };
+
+    let status_code = if let Some(result_str) = data.get("status_code").and_then(|v| v.as_str()) {
+        result_str.parse::<StatusCode>().unwrap_or(StatusCode::OK)
+    } else {
+        StatusCode::OK
+    };
+
+    sleep(Duration::from_millis(duration)).await;
     let response = Response::builder()
-        .status(StatusCode::OK)
+        .status(status_code)
         .header(header::CONTENT_TYPE, "text/plain")
         .body(full("Work done"))?;
     Ok(response)
