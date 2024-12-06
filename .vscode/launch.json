@@ -26,26 +26,6 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'load-balancer'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=load-balancer",
-                    "--package=load-balancer",
-                    "--manifest-path=${workspaceFolder}/load-balancer/Cargo.toml"
-                ],
-                "filter": {
-                    "name": "load-balancer",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}/load-balancer"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
             "name": "Debug 'dashboard'",
             "cargo": {
                 "args": [
@@ -61,6 +41,7 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}/dashboard",
+            "console": "externalTerminal",
             "sourceLanguages": [
                 "rust"
             ]
@@ -68,14 +49,24 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Run 'dashboard' in standalone terminal",
-            "program": "${workspaceFolder}/dashboard/target/debug/dashboard",
+            "name": "Debug 'client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=client",
+                    "--package=client",
+                    "--manifest-path=${workspaceFolder}/client/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "client",
+                    "kind": "bin"
+                }
+            },
             "args": [],
-            "cwd": "${workspaceFolder}/dashboard",
-            "console": "externalTerminal",
+            "cwd": "${workspaceFolder}/client",
             "sourceLanguages": [
                 "rust"
             ]
-        }
+        },
     ]
 }

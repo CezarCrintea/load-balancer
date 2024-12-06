@@ -1,0 +1,10 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.42.0", features = ["full"] }
+ratatui = "0.29.0"
+reqwest = { version = "0.12.9", features = ["json"] }
+crossterm = "0.28.1"
