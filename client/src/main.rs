@@ -1,97 +1,21 @@
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode},
-};
+use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     widgets::{Block, Borders, Paragraph},
-    Terminal,
 };
+use requests::{send_request, RequestType};
 use reqwest::StatusCode;
 use std::{
-    collections::HashMap,
-    io::{self, Error, Stdout},
+    io::{self, Error},
     sync::Arc,
 };
-use tokio::task;
+
+mod requests;
+
+mod tui_utils;
+use tui_utils::{cleanup_terminal, get_end_of_wrapped_text, setup_terminal};
 
 const MAX_LOG_LINES: usize = 100;
-
-enum RequestType {
-    ChangeAlgorithm(String),
-    Work(u64, StatusCode),
-}
-
-impl RequestType {
-    fn build(&self, client: Arc<reqwest::Client>) -> Result<reqwest::Request, reqwest::Error> {
-        match self {
-            RequestType::ChangeAlgorithm(new_algo) => build_change_algo_request(client, new_algo),
-            RequestType::Work(duration, status_code) => {
-                build_work_request(client, duration, status_code)
-            }
-        }
-    }
-}
-
-fn build_change_algo_request(
-    client: Arc<reqwest::Client>,
-    new_algo: &str,
-) -> Result<reqwest::Request, reqwest::Error> {
-    let mut data = HashMap::new();
-    data.insert("algo", new_algo.to_string());
-
-    client.post("http://127.0.0.1/algo").json(&data).build()
-}
-
-fn build_work_request(
-    client: Arc<reqwest::Client>,
-    duration: &u64,
-    status_code: &StatusCode,
-) -> Result<reqwest::Request, reqwest::Error> {
-    let mut data = HashMap::new();
-    data.insert("duration", duration.to_string());
-    data.insert("status_code", status_code.as_u16().to_string());
-
-    client.post("http://127.0.0.1/work").json(&data).build()
-}
-
-async fn send_request(
-    client: Arc<reqwest::Client>,
-    req: reqwest::Request,
-    tx: tokio::sync::mpsc::Sender<String>,
-) {
-    task::spawn(async move {
-        if let Ok(response) = client.execute(req).await {
-            if let Ok(text) = response.text().await {
-                let _ = tx.send(format!("Response received: {}", text)).await;
-            } else {
-                let _ = tx.send(String::from("Failed to read response text.")).await;
-            }
-        } else {
-            let _ = tx.send(String::from("Failed to send request.")).await;
-        }
-    });
-}
-
-fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, io::Error> {
-    enable_raw_mode()?;
-    let stdout = io::stdout();
-    let backend = CrosstermBackend::new(stdout);
-    let terminal = Terminal::new(backend)?;
-    Ok(terminal)
-}
-
-fn cleanup_terminal() -> Result<(), io::Error> {
-    disable_raw_mode()?;
-    execute!(io::stdout(), crossterm::cursor::Show)?;
-    execute!(
-        io::stdout(),
-        crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
-    )?;
-    Ok(())
-}
 
 fn main() -> Result<(), Error> {
     let client = Arc::new(
@@ -191,39 +115,4 @@ fn main() -> Result<(), Error> {
 
     cleanup_terminal()?;
     Ok(())
-}
-
-fn get_end_of_wrapped_text(text: &str, area: Rect) -> String {
-    let mut wrapped_lines = Vec::new();
-
-    let height = area.height as usize - 2;
-    let width = area.width as usize - 2;
-
-    for line in text.lines() {
-        let mut current_line = String::new();
-
-        for word in line.split_whitespace() {
-            if current_line.len() + word.len() + 1 > width {
-                wrapped_lines.push(current_line);
-                current_line = String::new();
-            }
-
-            if !current_line.is_empty() {
-                current_line.push(' ');
-            }
-            current_line.push_str(word);
-        }
-
-        if !current_line.is_empty() {
-            wrapped_lines.push(current_line);
-        }
-    }
-
-    let start = if wrapped_lines.len() > height {
-        wrapped_lines.len() - height
-    } else {
-        0
-    };
-
-    wrapped_lines[start..].join("\n")
 }
