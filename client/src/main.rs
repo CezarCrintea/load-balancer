@@ -33,19 +33,47 @@ fn main() -> Result<(), Error> {
 
     terminal.clear()?;
 
+    let menu_items = vec![
+        "1 - Change algo to round_robin",
+        "2 - Change algo to least_connections",
+        "3 - Send short work",
+        "4 - Send long work",
+        "5 - Reset worker servers",
+        "6 - Server 1 increased duration",
+        "7 - Server 1 increased error rate",
+        "8 - Clear output",
+        "q - Quit",
+    ];
+    let menu_item_max_len = menu_items.iter().map(|item| item.len()).max().unwrap();
+
     loop {
         terminal.draw(|frame| {
+            let width = frame.area().width as usize;
+
+            let mut menu_text = String::new();
+            for item in &menu_items {
+                let last_line_len = menu_text.lines().last().map_or(0, |line| line.len());
+                if last_line_len + menu_item_max_len + 1 > width {
+                    menu_text.push('\n');
+                }
+                menu_text.push_str(&format!(" {:width$}", item, width = menu_item_max_len));
+            }
+
+            let menu_text_height = menu_text.lines().count() as u16;
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+                .constraints(
+                    [Constraint::Length(menu_text_height + 2), Constraint::Min(0)].as_ref(),
+                )
                 .split(frame.area());
 
-            let menu = Paragraph::new("1 - Change algo to round_robin. 2 - Change algo to least_connections. 3 - Send short work. 4 - Send long work. 5. Reset worker servers. 6 - Server 1 increased duration. 7 - Server 1 increased error rate. 8 - Clear output. 9 - Quit.")
+            let menu = Paragraph::new(menu_text)
                 .block(Block::default().borders(Borders::ALL).title("Menu"));
 
             let text = get_end_of_wrapped_text(&output, chunks[1]);
-            let output_block =
-                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Output")).wrap(Wrap { trim: false });
+            let output_block = Paragraph::new(text)
+                .block(Block::default().borders(Borders::ALL).title("Output"))
+                .wrap(Wrap { trim: false });
 
             frame.render_widget(menu, chunks[0]);
             frame.render_widget(output_block, chunks[1]);
@@ -149,7 +177,7 @@ fn main() -> Result<(), Error> {
                     KeyCode::Char('8') => {
                         output = String::new();
                     }
-                    KeyCode::Char('9') => {
+                    KeyCode::Char('q') => {
                         output.push_str("\nQuitting...");
                         break;
                     }
