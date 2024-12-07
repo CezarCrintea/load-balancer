@@ -3,7 +3,7 @@ use std::fmt;
 const ROUND_ROBIN: &str = "round_robin";
 const LEAST_CONNECTIONS: &str = "least_connections";
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BalancingAlgorithm {
     RoundRobin,
     LeastConnections,
