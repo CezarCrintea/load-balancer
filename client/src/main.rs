@@ -41,7 +41,8 @@ fn main() -> Result<(), Error> {
         "5 - Reset worker servers",
         "6 - Server 1 increased duration",
         "7 - Server 1 increased error rate",
-        "8 - Clear output",
+        "a - Scenario A",
+        "c - Clear output",
         "q - Quit",
     ];
     let menu_item_max_len = menu_items.iter().map(|item| item.len()).max().unwrap();
@@ -88,93 +89,39 @@ fn main() -> Result<(), Error> {
                 match key_event.code {
                     KeyCode::Char('1') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::ChangeAlgorithm {
-                            new_algo: "round_robin".to_string(),
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        change_algorithm(&runtime, client.clone(), tx.clone(), "round_robin");
                     }
                     KeyCode::Char('2') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::ChangeAlgorithm {
-                            new_algo: "least_connections".to_string(),
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        change_algorithm(&runtime, client.clone(), tx.clone(), "least_connections");
                     }
                     KeyCode::Char('3') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work { multiplier: 1 }
-                            .build(client.clone())
-                            .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        do_work(&runtime, client.clone(), tx.clone(), 1);
                     }
                     KeyCode::Char('4') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work { multiplier: 10 }
-                            .build(client.clone())
-                            .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        do_work(&runtime, client.clone(), tx.clone(), 10);
                     }
                     KeyCode::Char('5') => {
                         output.push_str("\nSending requests...\n");
-                        let req = RequestType::SetupWorker {
-                            server: 0,
-                            min_duration: 10,
-                            max_duration: 1000,
-                            error_rate: 0.0,
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
-
-                        let req = RequestType::SetupWorker {
-                            server: 1,
-                            min_duration: 10,
-                            max_duration: 1000,
-                            error_rate: 0.0,
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
-
-                        let req = RequestType::SetupWorker {
-                            server: 2,
-                            min_duration: 10,
-                            max_duration: 1000,
-                            error_rate: 0.0,
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        setup_worker(&runtime, client.clone(), tx.clone(), 0, 10, 1000, 0.0);
+                        setup_worker(&runtime, client.clone(), tx.clone(), 1, 10, 1000, 0.0);
+                        setup_worker(&runtime, client.clone(), tx.clone(), 2, 10, 1000, 0.0);
                     }
                     KeyCode::Char('6') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::SetupWorker {
-                            server: 1,
-                            min_duration: 1000,
-                            max_duration: 2000,
-                            error_rate: 0.0,
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        setup_worker(&runtime, client.clone(), tx.clone(), 1, 1000, 2000, 0.0);
                     }
                     KeyCode::Char('7') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::SetupWorker {
-                            server: 1,
-                            min_duration: 500,
-                            max_duration: 1000,
-                            error_rate: 0.33,
-                        }
-                        .build(client.clone())
-                        .unwrap();
-                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                        setup_worker(&runtime, client.clone(), tx.clone(), 1, 500, 1000, 0.33);
                     }
-                    KeyCode::Char('8') => {
+                    KeyCode::Char('a') => {
+                        output.push_str("\nRunning scenario A...\n");
+                        scenario_a(&runtime, client.clone(), tx.clone());
+                    }
+                    KeyCode::Char('c') => {
                         output = String::new();
                     }
                     KeyCode::Char('q') => {
@@ -198,4 +145,74 @@ fn main() -> Result<(), Error> {
 
     cleanup_terminal()?;
     Ok(())
+}
+
+fn scenario_a(
+    runtime: &tokio::runtime::Runtime,
+    client: Arc<reqwest::Client>,
+    tx: tokio::sync::mpsc::Sender<String>,
+) {
+    change_algorithm(&runtime, client.clone(), tx.clone(), "round_robin");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    setup_worker(&runtime, client.clone(), tx.clone(), 0, 10, 20, 0.0);
+    setup_worker(&runtime, client.clone(), tx.clone(), 1, 1000, 2000, 0.0);
+    setup_worker(&runtime, client.clone(), tx.clone(), 2, 10, 20, 0.0);
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    for _ in 0..18 {
+        do_work(&runtime, client.clone(), tx.clone(), 10);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    setup_worker(&runtime, client.clone(), tx.clone(), 2, 10, 20, 0.0);
+    for _ in 0..12 {
+        do_work(&runtime, client.clone(), tx.clone(), 1);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+}
+
+fn change_algorithm(
+    runtime: &tokio::runtime::Runtime,
+    client: Arc<reqwest::Client>,
+    tx: tokio::sync::mpsc::Sender<String>,
+    algo: &str,
+) {
+    let req = RequestType::ChangeAlgorithm {
+        new_algo: algo.to_string(),
+    }
+    .build(client.clone())
+    .unwrap();
+    runtime.spawn(send_request(client.clone(), req, tx.clone()));
+}
+
+fn do_work(
+    runtime: &tokio::runtime::Runtime,
+    client: Arc<reqwest::Client>,
+    tx: tokio::sync::mpsc::Sender<String>,
+    multiplier: u64,
+) {
+    let req = RequestType::Work {
+        multiplier: multiplier,
+    }
+    .build(client.clone())
+    .unwrap();
+    runtime.spawn(send_request(client.clone(), req, tx.clone()));
+}
+
+fn setup_worker(
+    runtime: &tokio::runtime::Runtime,
+    client: Arc<reqwest::Client>,
+    tx: tokio::sync::mpsc::Sender<String>,
+    server: u64,
+    min_duration: u64,
+    max_duration: u64,
+    error_rate: f64,
+) {
+    let req = RequestType::SetupWorker {
+        server: server,
+        min_duration: min_duration,
+        max_duration: max_duration,
+        error_rate: error_rate,
+    }
+    .build(client.clone())
+    .unwrap();
+    runtime.spawn(send_request(client.clone(), req, tx.clone()));
 }
