@@ -4,6 +4,28 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug 'worker-server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=worker-server",
+                    "--package=worker-server",
+                    "--manifest-path=${workspaceFolder}/worker-server/Cargo.toml"
+                ],
+                "filter": {
+                    "name": "worker-server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/worker-server",
+            "sourceLanguages": [
+                "rust"
+            ]
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug 'load-balancer'",
             "cargo": {
                 "args": [
