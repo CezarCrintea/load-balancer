@@ -1,20 +1,35 @@
 use std::{collections::HashMap, sync::Arc};
 
-use reqwest::StatusCode;
 use tokio::task;
 
 pub enum RequestType {
-    ChangeAlgorithm(String),
-    Work(u64, StatusCode),
+    ChangeAlgorithm {
+        new_algo: String,
+    },
+    Work {
+        multiplier: u64,
+    },
+    SetupWorker {
+        server: u64,
+        min_duration: u64,
+        max_duration: u64,
+        error_rate: f64,
+    },
 }
 
 impl RequestType {
     pub fn build(&self, client: Arc<reqwest::Client>) -> Result<reqwest::Request, reqwest::Error> {
         match self {
-            RequestType::ChangeAlgorithm(new_algo) => build_change_algo_request(client, new_algo),
-            RequestType::Work(duration, status_code) => {
-                build_work_request(client, duration, status_code)
+            RequestType::ChangeAlgorithm { new_algo } => {
+                build_change_algo_request(client, new_algo)
             }
+            RequestType::Work { multiplier } => build_work_request(client, multiplier),
+            RequestType::SetupWorker {
+                server,
+                min_duration,
+                max_duration,
+                error_rate,
+            } => build_setup_worker_request(client, server, min_duration, max_duration, error_rate),
         }
     }
 }
@@ -31,14 +46,28 @@ fn build_change_algo_request(
 
 fn build_work_request(
     client: Arc<reqwest::Client>,
-    duration: &u64,
-    status_code: &StatusCode,
+    multiplier: &u64,
 ) -> Result<reqwest::Request, reqwest::Error> {
     let mut data = HashMap::new();
-    data.insert("duration", duration.to_string());
-    data.insert("status_code", status_code.as_u16().to_string());
+    data.insert("multiplier", multiplier.to_string());
 
     client.post("http://127.0.0.1/work").json(&data).build()
+}
+
+fn build_setup_worker_request(
+    client: Arc<reqwest::Client>,
+    server: &u64,
+    min_duration: &u64,
+    max_duration: &u64,
+    error_rate: &f64,
+) -> Result<reqwest::Request, reqwest::Error> {
+    let mut data = HashMap::new();
+    data.insert("min_duration", min_duration.to_string());
+    data.insert("max_duration", max_duration.to_string());
+    data.insert("error_rate", error_rate.to_string());
+
+    let url = format!("http://127.0.0.1:{}/setup", server + 3000);
+    client.post(url).json(&data).build()
 }
 
 pub async fn send_request(

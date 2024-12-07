@@ -1,10 +1,9 @@
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 use requests::{send_request, RequestType};
-use reqwest::StatusCode;
 use std::{
     io::{self, Error},
     sync::Arc,
@@ -41,18 +40,18 @@ fn main() -> Result<(), Error> {
                 .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
                 .split(frame.area());
 
-            let menu = Paragraph::new("1 - Change algo to round_robin. 2 - Change algo to least_connections. 3 - Process standard work. 4 - Process long work. 5 - Process work with error. 9 - Quit.")
+            let menu = Paragraph::new("1 - Change algo to round_robin. 2 - Change algo to least_connections. 3 - Send short work. 4 - Send long work. 5. Reset worker servers. 6 - Server 1 increased duration. 7 - Server 1 increased error rate. 8 - Clear output. 9 - Quit.")
                 .block(Block::default().borders(Borders::ALL).title("Menu"));
 
             let text = get_end_of_wrapped_text(&output, chunks[1]);
             let output_block =
-                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Output"));
+                Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Output")).wrap(Wrap { trim: false });
 
             frame.render_widget(menu, chunks[0]);
             frame.render_widget(output_block, chunks[1]);
         })?;
 
-        if event::poll(std::time::Duration::from_millis(200))? {
+        if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
                 if key_event.kind == event::KeyEventKind::Release {
                     continue;
@@ -61,38 +60,94 @@ fn main() -> Result<(), Error> {
                 match key_event.code {
                     KeyCode::Char('1') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::ChangeAlgorithm("round_robin".to_string())
-                            .build(client.clone())
-                            .unwrap();
+                        let req = RequestType::ChangeAlgorithm {
+                            new_algo: "round_robin".to_string(),
+                        }
+                        .build(client.clone())
+                        .unwrap();
                         runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('2') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::ChangeAlgorithm("least_connections".to_string())
-                            .build(client.clone())
-                            .unwrap();
+                        let req = RequestType::ChangeAlgorithm {
+                            new_algo: "least_connections".to_string(),
+                        }
+                        .build(client.clone())
+                        .unwrap();
                         runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('3') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work(10, StatusCode::OK)
+                        let req = RequestType::Work { multiplier: 1 }
                             .build(client.clone())
                             .unwrap();
                         runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('4') => {
                         output.push_str("\nSending request...\n");
-                        let req = RequestType::Work(5000, StatusCode::OK)
+                        let req = RequestType::Work { multiplier: 10 }
                             .build(client.clone())
                             .unwrap();
                         runtime.spawn(send_request(client.clone(), req, tx.clone()));
                     }
                     KeyCode::Char('5') => {
-                        output.push_str("\nSending request...\n");
-                        let req = RequestType::Work(100, StatusCode::INTERNAL_SERVER_ERROR)
-                            .build(client.clone())
-                            .unwrap();
+                        output.push_str("\nSending requests...\n");
+                        let req = RequestType::SetupWorker {
+                            server: 0,
+                            min_duration: 10,
+                            max_duration: 1000,
+                            error_rate: 0.0,
+                        }
+                        .build(client.clone())
+                        .unwrap();
                         runtime.spawn(send_request(client.clone(), req, tx.clone()));
+
+                        let req = RequestType::SetupWorker {
+                            server: 1,
+                            min_duration: 10,
+                            max_duration: 1000,
+                            error_rate: 0.0,
+                        }
+                        .build(client.clone())
+                        .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+
+                        let req = RequestType::SetupWorker {
+                            server: 2,
+                            min_duration: 10,
+                            max_duration: 1000,
+                            error_rate: 0.0,
+                        }
+                        .build(client.clone())
+                        .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                    }
+                    KeyCode::Char('6') => {
+                        output.push_str("\nSending request...\n");
+                        let req = RequestType::SetupWorker {
+                            server: 1,
+                            min_duration: 1000,
+                            max_duration: 2000,
+                            error_rate: 0.0,
+                        }
+                        .build(client.clone())
+                        .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                    }
+                    KeyCode::Char('7') => {
+                        output.push_str("\nSending request...\n");
+                        let req = RequestType::SetupWorker {
+                            server: 1,
+                            min_duration: 500,
+                            max_duration: 1000,
+                            error_rate: 0.33,
+                        }
+                        .build(client.clone())
+                        .unwrap();
+                        runtime.spawn(send_request(client.clone(), req, tx.clone()));
+                    }
+                    KeyCode::Char('8') => {
+                        output = String::new();
                     }
                     KeyCode::Char('9') => {
                         output.push_str("\nQuitting...");
