@@ -57,9 +57,20 @@ async fn main() -> Result<(), io::Error> {
         }
 
         if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') {
-                    break;
+            if let Event::Key(key_event) = event::read()? {
+                if key_event.kind == event::KeyEventKind::Release {
+                    continue;
+                }
+                match key_event.code {
+                    KeyCode::Char('c') => {
+                        for i in 0..4 {
+                            logs[i] = String::new();
+                        }
+                    }
+                    KeyCode::Char('q') => {
+                        break;
+                    }
+                    _ => {}
                 }
             }
         }
