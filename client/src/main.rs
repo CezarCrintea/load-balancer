@@ -8,11 +8,9 @@ use std::{
     io::{self, Error},
     sync::Arc,
 };
+use tui_utils::{cleanup_terminal, get_end_of_wrapped_text, setup_terminal};
 
 mod requests;
-
-mod tui_utils;
-use tui_utils::{cleanup_terminal, get_end_of_wrapped_text, setup_terminal};
 
 const MAX_LOG_LINES: usize = 100;
 

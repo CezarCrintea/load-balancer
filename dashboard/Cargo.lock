@@ -172,6 +172,7 @@ dependencies = [
  "crossterm",
  "ratatui",
  "tokio",
+ "tui_utils",
 ]
 
 [[package]]
@@ -641,6 +642,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tui_utils"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "ratatui",
 ]
 
 [[package]]

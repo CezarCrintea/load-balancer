@@ -21,6 +21,11 @@ pub fn cleanup_terminal() -> Result<(), io::Error> {
         io::stdout(),
         crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
     )?;
+    execute!(
+        io::stdout(),
+        crossterm::style::SetForegroundColor(crossterm::style::Color::Reset),
+        crossterm::style::SetBackgroundColor(crossterm::style::Color::Reset)
+    )?;
     Ok(())
 }
 

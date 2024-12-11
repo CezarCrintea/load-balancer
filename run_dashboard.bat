@@ -28,4 +28,3 @@ if %errorlevel% neq 0 (
 )
 
 echo All applications built successfully.
-pause

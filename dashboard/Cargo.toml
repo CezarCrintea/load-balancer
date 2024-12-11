@@ -8,3 +8,4 @@ ansi-to-tui = "7.0.0"
 crossterm = "0.28.1"
 ratatui = "0.29.0"
 tokio = { version = "1.32", features = ["full"] }
+tui_utils = { path = "../tui_utils" }
