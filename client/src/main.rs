@@ -39,8 +39,8 @@ fn main() -> Result<(), Error> {
         "3 - Send short work",
         "4 - Send long work",
         "5 - Reset worker servers",
-        "6 - Server 1 increased duration",
-        "7 - Server 1 increased error rate",
+        "6 - Worker server 2 increased duration",
+        "7 - Worker server 2 increased error rate",
         "a - Scenario A",
         "c - Clear output",
         "q - Quit",
@@ -88,33 +88,38 @@ fn main() -> Result<(), Error> {
 
                 match key_event.code {
                     KeyCode::Char('1') => {
-                        output.push_str("\nSending request...\n");
+                        output.push_str("\nSending request to change algo to round_robin...\n");
                         change_algorithm(&runtime, client.clone(), tx.clone(), "round_robin");
                     }
                     KeyCode::Char('2') => {
-                        output.push_str("\nSending request...\n");
+                        output
+                            .push_str("\nSending request to change algo to least_connections...\n");
                         change_algorithm(&runtime, client.clone(), tx.clone(), "least_connections");
                     }
                     KeyCode::Char('3') => {
-                        output.push_str("\nSending request...\n");
+                        output.push_str("\nSending request to do short work...\n");
                         do_work(&runtime, client.clone(), tx.clone(), 1);
                     }
                     KeyCode::Char('4') => {
-                        output.push_str("\nSending request...\n");
+                        output.push_str("\nSending request to do long work...\n");
                         do_work(&runtime, client.clone(), tx.clone(), 10);
                     }
                     KeyCode::Char('5') => {
-                        output.push_str("\nSending requests...\n");
+                        output.push_str("\nSending requests to reset worker servers...\n");
                         setup_worker(&runtime, client.clone(), tx.clone(), 0, 10, 1000, 0.0);
                         setup_worker(&runtime, client.clone(), tx.clone(), 1, 10, 1000, 0.0);
                         setup_worker(&runtime, client.clone(), tx.clone(), 2, 10, 1000, 0.0);
                     }
                     KeyCode::Char('6') => {
-                        output.push_str("\nSending request...\n");
+                        output.push_str(
+                            "\nSending request to worker server 2 to increse duration...\n",
+                        );
                         setup_worker(&runtime, client.clone(), tx.clone(), 1, 1000, 2000, 0.0);
                     }
                     KeyCode::Char('7') => {
-                        output.push_str("\nSending request...\n");
+                        output.push_str(
+                            "\nSending request to worker server 2 to increase error rate...\n",
+                        );
                         setup_worker(&runtime, client.clone(), tx.clone(), 1, 500, 1000, 0.33);
                     }
                     KeyCode::Char('a') => {
