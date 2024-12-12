@@ -1,13 +1,5 @@
 services:
-  load-balancer:
-    build:
-      context: ./load-balancer
-      dockerfile: Dockerfile
-
   worker-server1:
-    build:
-      context: ./worker-server
-      dockerfile: Dockerfile
     ports:
       - "3000:3000"
 

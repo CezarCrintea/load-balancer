@@ -4,6 +4,11 @@ services:
   load-balancer:
     container_name: load-balancer
     image: load-balancer:latest
+    build:
+      additional_contexts:
+          - environment=./environment
+      context: ./load-balancer
+      dockerfile: Dockerfile
     environment:
       - APP_ENVIRONMENT=docker-compose
     ports:
@@ -16,6 +21,11 @@ services:
   worker-server1:
     container_name: worker-server1
     image: worker-server:latest
+    build:
+      additional_contexts:
+        - environment=./environment
+      context: ./worker-server
+      dockerfile: Dockerfile
     environment:
       - APP_ENVIRONMENT=docker-compose
       - PORT=3000

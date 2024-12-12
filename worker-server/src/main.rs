@@ -1,5 +1,3 @@
-mod environment;
-
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;

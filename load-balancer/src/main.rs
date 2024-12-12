@@ -1,5 +1,4 @@
 mod balancing_algorithm;
-mod environment;
 mod load_balancer;
 mod server;
 
