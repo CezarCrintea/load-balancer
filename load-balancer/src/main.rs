@@ -1,13 +1,15 @@
 mod balancing_algorithm;
+mod environment;
 mod load_balancer;
 mod server;
 
 use std::env;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use balancing_algorithm::BalancingAlgorithm;
 use bytes::{Buf, Bytes};
+use environment::Environment;
 use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -29,13 +31,17 @@ type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let load_balancer = create_load_balancer().unwrap();
+    let env = Environment::from_env();
+    let load_balancer = create_load_balancer(&env).unwrap();
     let load_balancer = Arc::new(RwLock::new(load_balancer));
 
     let port = env::var("PORT")
         .unwrap_or_else(|_| "80".to_string())
         .parse::<u16>()?;
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = match env {
+        Environment::Local => SocketAddr::from(([127, 0, 0, 1], port)),
+        Environment::DockerCompose => SocketAddr::from(([0, 0, 0, 0], port)),
+    };
     let listener = TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
     info!("Listening on http://{}", addr);
 
@@ -54,12 +60,31 @@ async fn main() -> Result<()> {
     }
 }
 
-fn create_load_balancer() -> Result<LoadBalancer> {
-    let servers = vec![
-        Server::new("127.0.0.1:3000".to_string())?,
-        Server::new("127.0.0.1:3001".to_string())?,
-        Server::new("127.0.0.1:3002".to_string())?,
-    ];
+fn get_ip(hostname: &str) -> String {
+    if let Ok(mut addrs) = (hostname, 0).to_socket_addrs() {
+        if let Some(socket_addr) = addrs.next() {
+            socket_addr.ip().to_string()
+        } else {
+            panic!("Failed to resolve hostname '{}'", hostname);
+        }
+    } else {
+        panic!("Failed to resolve hostname '{}'", hostname);
+    }
+}
+
+fn create_load_balancer(env: &Environment) -> Result<LoadBalancer> {
+    let servers = match env {
+        Environment::Local => vec![
+            Server::new("127.0.0.1:3000".to_string())?,
+            Server::new("127.0.0.1:3001".to_string())?,
+            Server::new("127.0.0.1:3002".to_string())?,
+        ],
+        Environment::DockerCompose => vec![
+            Server::new(format!("{}:3000", get_ip("worker-server1")).to_string())?,
+            Server::new(format!("{}:3001", get_ip("worker-server2")).to_string())?,
+            Server::new(format!("{}:3002", get_ip("worker-server3")).to_string())?,
+        ],
+    };
 
     let lb = LoadBalancer::new(servers)?;
     Ok(lb)
@@ -156,7 +181,13 @@ async fn forward_request(
         worker_req.headers_mut().insert(key, value.clone());
     }
 
-    let client_stream = TcpStream::connect(&worker_addr).await.unwrap();
+    let client_stream = match TcpStream::connect(&worker_addr).await {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to connect to {}: {:?}", worker_addr, e);
+            return Err(Box::new(e));
+        }
+    };
     let io = TokioIo::new(client_stream);
 
     let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;

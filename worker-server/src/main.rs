@@ -1,8 +1,11 @@
+mod environment;
+
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use bytes::{Buf, Bytes};
+use environment::Environment;
 use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -47,10 +50,15 @@ impl Default for GlobalState {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
+    let env = Environment::from_env();
+
     let port = env::var("PORT")
         .unwrap_or_else(|_| "3000".to_string())
         .parse::<u16>()?;
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = match env {
+        Environment::Local => SocketAddr::from(([127, 0, 0, 1], port)),
+        Environment::DockerCompose => SocketAddr::from(([0, 0, 0, 0], port)),
+    };
     let listener = TcpListener::bind(addr).await?;
     info!("Listening on http://{}", addr);
 
