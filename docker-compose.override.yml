@@ -1,0 +1,20 @@
+services:
+  load-balancer:
+    build:
+      context: ./load-balancer
+      dockerfile: Dockerfile
+
+  worker-server1:
+    build:
+      context: ./worker-server
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+
+  worker-server2:
+    ports:
+      - "3001:3001"
+
+  worker-server3:
+    ports:
+      - "3002:3002"

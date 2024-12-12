@@ -1,0 +1,30 @@
+name: load-balancer
+
+services:
+  load-balancer:
+    container_name: load-balancer
+    image: load-balancer:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - worker-server1
+      - worker-server2
+      - worker-server3
+
+  worker-server1:
+    container_name: worker-server1
+    image: worker-server:latest
+    environment:
+      - PORT=3000
+    
+  worker-server2:
+    container_name: worker-server2
+    image: worker-server:latest
+    environment:
+      - PORT=3001
+    
+  worker-server3:
+    container_name: worker-server3
+    image: worker-server:latest
+    environment:
+      - PORT=3002
