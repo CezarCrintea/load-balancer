@@ -21,6 +21,7 @@ cd ..
 
 echo Building and running dashboard application...
 cd dashboard
+SET APP_ENVIRONMENT=docker-compose
 cargo run
 if %errorlevel% neq 0 (
     echo Failed to build and run dashboard application. Exiting...

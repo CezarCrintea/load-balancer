@@ -1,5 +1,6 @@
 use ansi_to_tui::IntoText;
 use crossterm::event::{self, Event, KeyCode};
+use environment::Environment;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -13,10 +14,10 @@ use std::{
 };
 use tui_utils::{cleanup_terminal, get_end_of_wrapped_text, setup_terminal};
 
-use tokio::io::AsyncBufReadExt;
 use tokio::process::Command as AsyncCommand;
 use tokio::sync::mpsc;
 use tokio::task;
+use tokio::io::AsyncBufReadExt;
 
 const MAX_LOG_LINES: usize = 100;
 
@@ -24,17 +25,7 @@ const MAX_LOG_LINES: usize = 100;
 async fn main() -> Result<(), io::Error> {
     let (tx, mut rx) = mpsc::unbounded_channel();
 
-    spawn_process(tx.clone(), "load-balancer".to_string(), 0, None).await;
-
-    for (i, port) in (3000..3003).enumerate() {
-        spawn_process(
-            tx.clone(),
-            "worker-server".to_string(),
-            i + 1,
-            Some(vec![("PORT".to_string(), port.to_string())]),
-        )
-        .await;
-    }
+    launch_load_balancer(tx.clone()).await;
 
     let mut terminal = setup_terminal()?;
     terminal.clear()?;
@@ -216,5 +207,93 @@ async fn spawn_process(
                 let _ = tx.send((idx, format!("{}", line)));
             }
         }
+    });
+}
+
+async fn launch_load_balancer(tx: mpsc::UnboundedSender<(usize, String)>) {
+    let env = Environment::from_env();
+    match env {
+        Environment::Local => launch_load_balancer_local(tx).await,
+        Environment::DockerCompose => launch_load_balancer_docker_compose(tx).await,
+    }
+}
+
+async fn launch_load_balancer_local(tx: mpsc::UnboundedSender<(usize, String)>) {
+    spawn_process(tx.clone(), "load-balancer".to_string(), 0, None).await;
+
+    for (i, port) in (3000..3003).enumerate() {
+        spawn_process(
+            tx.clone(),
+            "worker-server".to_string(),
+            i + 1,
+            Some(vec![("PORT".to_string(), port.to_string())]),
+        )
+        .await;
+    }
+}
+
+async fn launch_load_balancer_docker_compose(tx: mpsc::UnboundedSender<(usize, String)>) {
+    let output = AsyncCommand::new("docker-compose")
+        .arg("up")
+        .arg("-d")
+        .output()
+        .await
+        .expect("Failed to execute docker-compose");
+
+    if !output.status.success() {
+        eprintln!(
+            "Error launching Docker Compose: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    println!("Docker Compose launched successfully!");
+
+    tokio::spawn(async move {
+        let containers = vec![
+            "load-balancer",
+            "worker-server1",
+            "worker-server2",
+            "worker-server3",
+        ];
+        let mut tasks = Vec::new();
+
+        for (idx, container) in containers.iter().enumerate() {
+            let tx = tx.clone();
+            let container_name = container.to_string();
+
+            let task = tokio::spawn(async move {
+                let mut cmd = AsyncCommand::new("docker");
+                cmd.arg("logs")
+                    .arg("-f") // Follow logs
+                    .arg(&container_name);
+
+                let mut child = cmd
+                    .stdout(std::process::Stdio::piped())
+                    .spawn()
+                    .expect("Failed to spawn docker logs command");
+
+                if let Some(stdout) = child.stdout.take() {
+                    let reader = tokio::io::BufReader::new(stdout);
+                    let mut lines = reader.lines();
+
+                    while let Some(line) = lines.next_line().await.unwrap_or_else(|_| None) {
+                        let line = line.into_text().unwrap();
+                        let _ = tx.send((idx, format!("{}", line)));
+                    }
+                }
+
+                child.wait().await.expect("Failed to wait for docker logs");
+            });
+
+            tasks.push(task);
+        }
+
+        tasks.into_iter().for_each(|t| {
+            tokio::spawn(async move {
+                t.await.expect("Failed to wait for task");
+            });
+        });
     });
 }
