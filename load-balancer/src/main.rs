@@ -17,6 +17,7 @@ use hyper::{body::Incoming as IncomingBody, header, Method, Request, Response, S
 use hyper_util::rt::TokioIo;
 use load_balancer::LoadBalancer;
 use server::Server;
+use tokio::fs;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::RwLock;
 use tracing::{error, info, instrument, warn};
@@ -39,7 +40,15 @@ async fn main() -> Result<()> {
         .parse::<u16>()?;
     let addr = match env {
         Environment::Local => SocketAddr::from(([127, 0, 0, 1], port)),
-        Environment::DockerCompose => SocketAddr::from(([0, 0, 0, 0], port)),
+        Environment::DockerCompose => {
+            let container_name = fs::read_to_string("/etc/hostname")
+                .await?
+                .trim()
+                .to_string();
+            let ip = get_ip(&container_name);
+            let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
+            addr
+        }
     };
     let listener = TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
     info!("Listening on http://{}", addr);

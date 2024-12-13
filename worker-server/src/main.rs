@@ -1,5 +1,5 @@
 use std::env;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use bytes::{Buf, Bytes};
@@ -11,6 +11,7 @@ use hyper::{body::Incoming as IncomingBody, header, Method, Request, Response, S
 use hyper_util::rt::TokioIo;
 use once_cell::sync::Lazy;
 use rand::Rng;
+use tokio::fs;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
@@ -55,7 +56,15 @@ async fn main() -> Result<()> {
         .parse::<u16>()?;
     let addr = match env {
         Environment::Local => SocketAddr::from(([127, 0, 0, 1], port)),
-        Environment::DockerCompose => SocketAddr::from(([0, 0, 0, 0], port)),
+        Environment::DockerCompose => {
+            let container_name = fs::read_to_string("/etc/hostname")
+                .await?
+                .trim()
+                .to_string();
+            let ip = get_ip(&container_name);
+            let addr = format!("{}:{}", ip, port).parse::<SocketAddr>().unwrap();
+            addr
+        }
     };
     let listener = TcpListener::bind(addr).await?;
     info!("Listening on http://{}", addr);
@@ -205,4 +214,16 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
     Full::new(chunk.into())
         .map_err(|never| match never {})
         .boxed()
+}
+
+fn get_ip(hostname: &str) -> String {
+    if let Ok(mut addrs) = (hostname, 0).to_socket_addrs() {
+        if let Some(socket_addr) = addrs.next() {
+            socket_addr.ip().to_string()
+        } else {
+            panic!("Failed to resolve hostname '{}'", hostname);
+        }
+    } else {
+        panic!("Failed to resolve hostname '{}'", hostname);
+    }
 }
